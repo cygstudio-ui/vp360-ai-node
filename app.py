@@ -11,6 +11,14 @@ logging.basicConfig(level=logging.INFO)
 GALLERY_BASE = "/var/cache/ai_galleries"
 os.makedirs(GALLERY_BASE, exist_ok=True)
 
+# ----------------- PARCHE AÑADIDO: -----------------
+# Añadimos un encabezado de navegador real global para evitar 
+# el firewall de ModSecurity en el servidor cPanel de vp360.
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+}
+# ---------------------------------------------------
+
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "VP360 AI Node"}
@@ -37,7 +45,9 @@ async def match_face(
         target_enc = target_encs[0]
 
         sync_url = f"{cpanel_url}/api/gallery-sync/{folder_name}"
-        res = requests.get(sync_url, timeout=10)
+        
+        # [PARCHE 1]: Se aplican los HEADERS a la llamada de sincronización JSON
+        res = requests.get(sync_url, headers=HEADERS, timeout=10)
         if res.status_code != 200:
             raise HTTPException(status_code=404, detail="No se pudo sincronizar con cPanel.")
 
@@ -61,7 +71,8 @@ async def match_face(
         for filename in remote_files:
             img_path = os.path.join(local_dir, filename)
             if not os.path.exists(img_path):
-                r = requests.get(f"{base_url}/{filename}", timeout=15)
+                # [PARCHE 2]: Se aplican los HEADERS a la descarga individual de las fotos
+                r = requests.get(f"{base_url}/{filename}", headers=HEADERS, timeout=15)
                 with open(img_path, "wb") as f:
                     f.write(r.content)
             try:
@@ -89,4 +100,3 @@ async def match_face(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
